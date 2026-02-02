@@ -9,7 +9,7 @@
 
 #include "i2c_lcd.h"
 
-static const char *TAG = "LCD_I2C";
+static const char *TAG = "I2C_LCD";
 
 /* ===================== LCD BITS & COMMANDS ===================== */
 #define LCD_RS        0x01
@@ -22,6 +22,7 @@ static const char *TAG = "LCD_I2C";
 #define CMD_SET_DDRAM_ADDR    0x80
 #define CMD_INIT_8BIT         0x30
 #define CMD_INIT_4BIT         0x20
+#define CMD_ENTRY             0x06
 
 /* ===================== GLOBALS ===================== */
 // These stay static so they are private to this file
@@ -68,13 +69,17 @@ static void lcd_send_byte(uint8_t val, uint8_t mode) {
 }
 
 /* ===================== PUBLIC API ===================== */
+void lcd_clear(void) {
+    lcd_send_byte(CMD_CLEAR, 0);
+    vTaskDelay(pdMS_TO_TICKS(2));
+}
 
-esp_err_t lcd_i2c_init(const i2c_master_bus_config_t *bus_cfg, const i2c_device_config_t *dev_cfg) {
-    if (bus_cfg == NULL || dev_cfg == NULL || bus_handle == NULL) return ESP_ERR_INVALID_ARG;
+esp_err_t lcd_i2c_init(i2c_master_bus_config_t * bus_cfg, i2c_device_config_t * dev_cfg) {
+    if (bus_cfg == NULL || dev_cfg == NULL) return ESP_ERR_INVALID_ARG;
 
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &bus_handle));
+    ESP_ERROR_CHECK(i2c_new_master_bus(bus_cfg, &bus_handle));
 
-    esp_err_t err = i2c_master_bus_add_device(bus_handle, &dev_cfg, &lcd_dev);
+    esp_err_t err = i2c_master_bus_add_device(bus_handle, dev_cfg, &lcd_dev);
     if (err != ESP_OK) return err;
 
     if (i2c_mutex == NULL) {
@@ -97,13 +102,8 @@ esp_err_t lcd_i2c_init(const i2c_master_bus_config_t *bus_cfg, const i2c_device_
     lcd_send_byte(CMD_ENTRY, 0);
     lcd_clear();
 
-    ESP_LOGI(TAG, "LCD initialized at addr 0x%02X", conf->lcd_addr);
+    ESP_LOGI(TAG, "LCD initialized");
     return ESP_OK;
-}
-
-void lcd_clear(void) {
-    lcd_send_byte(CMD_CLEAR, 0);
-    vTaskDelay(pdMS_TO_TICKS(2));
 }
 
 esp_err_t lcd_send_row(uint8_t row, const char *str) {
@@ -117,11 +117,6 @@ esp_err_t lcd_send_row(uint8_t row, const char *str) {
         uint8_t c = (i < strlen(str)) ? (uint8_t)str[i] : (uint8_t)' ';
         pack_byte_to_buffer(buf, &idx, c, LCD_RS);
     }
-
-    i2c_master_transmit_multi_buffer_info_t info = {
-        .write_buffer = buf,
-        .buffer_size = 68
-    };
 
     return lcd_i2c_tx(buf, 68);
 }

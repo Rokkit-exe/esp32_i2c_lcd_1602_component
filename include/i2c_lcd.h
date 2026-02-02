@@ -1,5 +1,5 @@
-#ifndef LCD_I2C_H
-#define LCD_I2C_H
+#ifndef I2C_LCD_H
+#define I2C_LCD_H
 
 #include <stdint.h>
 #include "esp_err.h"         // Needed for esp_err_t
@@ -9,12 +9,12 @@
 /**
  * @brief Initialize the LCD using an existing I2C bus handle
  */
-esp_err_t lcd_i2c_init(const i2c_master_bus_config_t *bus_cfg, const i2c_device_config_t *dev_cfg);
+esp_err_t lcd_i2c_init(i2c_master_bus_config_t * bus_cfg, i2c_device_config_t * dev_cfg);
 
 /**
  * @brief Clears the display and returns cursor to (0,0)
  */
-esp_err_t lcd_clear(void);
+void lcd_clear(void);
 
 /**
  * @brief Sends a full 16-character row atomically
