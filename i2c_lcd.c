@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -63,23 +64,42 @@ static void pack_byte_to_buffer(uint8_t *buf, int *idx, uint8_t val, uint8_t mod
     buf[(*idx)++] = low & ~LCD_ENABLE;
 }
 
-static void lcd_send_byte(uint8_t val, uint8_t mode) {
-    lcd_write_nibble(val & 0xF0, mode);
-    lcd_write_nibble((val << 4) & 0xF0, mode);
+static esp_err_t lcd_send_byte(uint8_t val, uint8_t mode) {
+    esp_err_t err = lcd_write_nibble(val & 0xF0, mode);
+    if (err != ESP_OK) return err;
+    err = lcd_write_nibble((val << 4) & 0xF0, mode);
+    return err;
 }
 
 /* ===================== PUBLIC API ===================== */
-void lcd_clear(void) {
-    lcd_send_byte(CMD_CLEAR, 0);
+esp_err_t lcd_clear(void) {
+    esp_err_t err = lcd_send_byte(CMD_CLEAR, 0);
+    if (err != ESP_OK) return err;
     vTaskDelay(pdMS_TO_TICKS(2));
+    return ESP_OK;
 }
 
-esp_err_t lcd_i2c_init(i2c_master_bus_config_t * bus_cfg, i2c_device_config_t * dev_cfg) {
-    if (bus_cfg == NULL || dev_cfg == NULL) return ESP_ERR_INVALID_ARG;
+esp_err_t i2c_lcd_init(const i2c_lcd_config_t * conf) {
+    if (conf == NULL) return ESP_ERR_INVALID_ARG;
 
-    ESP_ERROR_CHECK(i2c_new_master_bus(bus_cfg, &bus_handle));
+    i2c_master_bus_config_t bus_cfg = {
+        .i2c_port = -1,
+        .sda_io_num = conf->master_sda_io,
+        .scl_io_num = conf->master_scl_io,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
 
-    esp_err_t err = i2c_master_bus_add_device(bus_handle, dev_cfg, &lcd_dev);
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = conf->lcd_addr,
+        .scl_speed_hz = conf->master_freq_hz,
+    };
+
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &bus_handle));
+
+    esp_err_t err = i2c_master_bus_add_device(bus_handle, &dev_cfg, &lcd_dev);
     if (err != ESP_OK) return err;
 
     if (i2c_mutex == NULL) {
@@ -104,6 +124,10 @@ esp_err_t lcd_i2c_init(i2c_master_bus_config_t * bus_cfg, i2c_device_config_t * 
 
     ESP_LOGI(TAG, "LCD initialized");
     return ESP_OK;
+}
+
+esp_err_t lcd_send_command(uint8_t cmd) {
+    return lcd_send_byte(cmd, 0);
 }
 
 esp_err_t lcd_send_row(uint8_t row, const char *str) {
