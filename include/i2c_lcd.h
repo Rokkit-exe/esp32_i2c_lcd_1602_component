@@ -5,18 +5,11 @@
 #include "esp_err.h"         // Needed for esp_err_t
 #include "driver/i2c_master.h"
 
-/**
- * @brief Configuration structure for LCD initialization
- */
-typedef struct {
-    i2c_master_bus_handle_t bus_handle; // The handle of the initialized I2C bus
-    uint8_t lcd_addr;                   // Usually 0x27
-} lcd_i2c_config_t;
 
 /**
  * @brief Initialize the LCD using an existing I2C bus handle
  */
-esp_err_t lcd_i2c_init(const lcd_i2c_config_t *conf);
+esp_err_t lcd_i2c_init(const i2c_master_bus_config_t *bus_cfg, const i2c_device_config_t *dev_cfg);
 
 /**
  * @brief Clears the display and returns cursor to (0,0)
