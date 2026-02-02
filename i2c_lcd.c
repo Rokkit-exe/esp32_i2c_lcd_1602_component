@@ -7,7 +7,7 @@
 #include "esp_rom_sys.h"
 #include "esp_log.h"
 
-#include "i2c_lcd.h" // Ensure this matches your header filename
+#include "i2c_lcd.h"
 
 static const char *TAG = "LCD_I2C";
 
@@ -25,6 +25,7 @@ static const char *TAG = "LCD_I2C";
 
 /* ===================== GLOBALS ===================== */
 // These stay static so they are private to this file
+static i2c_master_bus_handle_t bus_handle = NULL;
 static i2c_master_dev_handle_t lcd_dev = NULL;
 static SemaphoreHandle_t i2c_mutex = NULL;
 
@@ -68,17 +69,12 @@ static void lcd_send_byte(uint8_t val, uint8_t mode) {
 
 /* ===================== PUBLIC API ===================== */
 
-esp_err_t lcd_i2c_init(const lcd_i2c_config_t *conf) {
-    if (conf == NULL || conf->bus_handle == NULL) return ESP_ERR_INVALID_ARG;
+esp_err_t lcd_i2c_init(const i2c_master_bus_config_t *bus_cfg, const i2c_device_config_t *dev_cfg) {
+    if (bus_cfg == NULL || dev_cfg == NULL || bus_handle == NULL) return ESP_ERR_INVALID_ARG;
 
-    // Add device to the pre-existing bus passed from main
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = conf->lcd_addr,
-        .scl_speed_hz = 100000, // Safe speed for most backpacks
-    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &bus_handle));
 
-    esp_err_t err = i2c_master_bus_add_device(conf->bus_handle, &dev_cfg, &lcd_dev);
+    esp_err_t err = i2c_master_bus_add_device(bus_handle, &dev_cfg, &lcd_dev);
     if (err != ESP_OK) return err;
 
     if (i2c_mutex == NULL) {
@@ -107,7 +103,7 @@ esp_err_t lcd_i2c_init(const lcd_i2c_config_t *conf) {
 
 void lcd_clear(void) {
     lcd_send_byte(CMD_CLEAR, 0);
-    vTaskDelay(pdMS_TO_TICKS(2)); // Use vTaskDelay for long LCD ops
+    vTaskDelay(pdMS_TO_TICKS(2));
 }
 
 esp_err_t lcd_send_row(uint8_t row, const char *str) {
@@ -127,6 +123,6 @@ esp_err_t lcd_send_row(uint8_t row, const char *str) {
         .buffer_size = 68
     };
 
-    return lcd_i2c_tx(buf, 68); // Use our mutex-protected tx
+    return lcd_i2c_tx(buf, 68);
 }
 
